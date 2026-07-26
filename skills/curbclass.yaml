@@ -19,13 +19,13 @@ services:
     brackets:
       - name: small_2_car
         label: "Small (2-car driveway)"
-        low: 150
+        low: 450
       - name: medium_4_car
         label: "Medium (4-car/wide driveway)"
-        low: 250
+        low: 550
       - name: large_circular
         label: "Large (circular/long driveway)"
-        low: 400
+        low: 750
 
   Low-Pressure House Wash:
     display: "Low-Pressure House Wash"
@@ -35,13 +35,13 @@ services:
     brackets:
       - name: townhome_1_story
         label: "Townhome / 1-story"
-        low: 200
+        low: 350
       - name: suburban_2_story
         label: "Suburban 2-story"
-        low: 350
+        low: 450
       - name: estate_large
         label: "Large estate"
-        low: 600
+        low: 650
 
   Exterior Wood & Railing Repair:
     display: "Exterior Wood & Railing Repair"
@@ -51,13 +51,13 @@ services:
     brackets:
       - name: minor
         label: "Minor (1-2 areas)"
-        low: 200
+        low: 350
       - name: moderate
         label: "Moderate (3-5 areas)"
-        low: 400
+        low: 500
       - name: extensive
         label: "Extensive (full porch/stoop)"
-        low: 700
+        low: 750
 
   Front Door & Accent Painting:
     display: "Front Door & Accent Painting"
@@ -65,7 +65,7 @@ services:
     medusa_handle: "front-door-accent-painting"
     basePrice: "300"
     flat_rate:
-      low: 180
+      low: 300
 
   Bush Trimming & Dark Mulching:
     display: "Bush Trimming & Dark Mulching"
@@ -75,13 +75,13 @@ services:
     brackets:
       - name: small_beds
         label: "Small beds"
-        low: 100
+        low: 400
       - name: medium_beds
         label: "Medium beds"
-        low: 220
+        low: 500
       - name: full_property
         label: "Full property"
-        low: 500
+        low: 700
 
   Premium Curb Class Hardware Bundle:
     display: "Premium Curb Class Hardware Bundle"
@@ -89,7 +89,7 @@ services:
     medusa_handle: "premium-curb-class-hardware-bundle"
     basePrice: "650"
     flat_rate:
-      low: 400
+      low: 650
 
 image_rules:
   min_photos: 1
@@ -124,43 +124,43 @@ prompts:
     Respond with ONLY a JSON object: {"appropriate": true/false, "reason": "explanation if not appropriate"}
 
   quote: |
-    For each requested service, assess the work required from the photos and determine the appropriate base estimate. Then, apply a +20% markup across the entire scale (multiply your dynamic assessment by 1.2) so that all prices, whether at baseline or adjusted upward for condition, are consistently 20% higher.
+    For each requested service, assess the work required from the photos and determine the appropriate estimate. The estimate MUST be at least the standard baseline starting price listed below, and should only go up from there depending on the complexity, size, and prep work observed in the photos. Do not estimate below these starting baselines.
 
-    Use these standard baselines as your starting reference point (the baseline remains the starting point for clean properties, but the final output should be 1.2x the baseline):
+    Use these standard starting rates as your minimum reference points:
 
     1. Driveway & Concrete Deep Clean:
-       - small_2_car: Baseline $150 (Output: $180)
-       - medium_4_car: Baseline $250 (Output: $300)
-       - large_circular: Baseline $400 (Output: $480)
-       - Work scaling: Evaluate size and condition (such as oil staining or heavy organic growth). Estimate the base cost for this level of effort, then scale the entire result up by 20% (+20% markup).
+       - small_2_car: Starting rate of $450 (for small 2-car driveways in good condition)
+       - medium_4_car: Starting rate of $550 (for medium 4-car/wide driveways)
+       - large_circular: Starting rate of $750 (for large circular/long driveways)
+       - Work scaling: Evaluate size and condition (such as oil staining or heavy organic growth). Estimate the cost for this level of effort (minimum $450).
 
     2. Low-Pressure House Wash:
-       - townhome_1_story: Baseline $200 (Output: $240)
-       - suburban_2_story: Baseline $350 (Output: $420)
-       - estate_large: Baseline $600 (Output: $720)
-       - Work scaling: Assess height, multi-level complexity, and mildew buildup. Estimate the base cost for this level of effort, then scale the entire result up by 20% (+20% markup).
+       - townhome_1_story: Starting rate of $350 (for townhomes/1-story homes)
+       - suburban_2_story: Starting rate of $450 (for typical suburban 2-story homes)
+       - estate_large: Starting rate of $650 (for large estate homes)
+       - Work scaling: Assess height, multi-level complexity, and mildew buildup. Estimate the cost for this level of effort (minimum $350).
 
     3. Exterior Wood & Railing Repair:
-       - minor: Baseline $200 (Output: $240)
-       - moderate: Baseline $400 (Output: $480)
-       - extensive: Baseline $700 (Output: $840)
-       - Work scaling: Assess deterioration severity. Estimate the base cost for this level of effort, then scale the entire result up by 20% (+20% markup).
+       - minor: Starting rate of $350 (for minor repairs in 1-2 areas)
+       - moderate: Starting rate of $500 (for moderate repairs in 3-5 areas)
+       - extensive: Starting rate of $750 (for extensive repair/full porch)
+       - Work scaling: Assess deterioration severity. Estimate the cost for this level of effort (minimum $350).
 
     4. Front Door & Accent Painting:
-       - flat_rate: Baseline $180 (Output: $216)
-       - Work scaling: Assess accent painting scope (such as front door, shutters, or columns). Estimate the base cost for this level of effort, then scale the entire result up by 20% (+20% markup).
+       - flat_rate: Starting rate of $300 (for standard front door and trim accent painting)
+       - Work scaling: Assess accent painting scope (such as front door, shutters, or columns). Estimate the cost for this level of effort (minimum $300).
 
     5. Bush Trimming & Dark Mulching:
-       - small_beds: Baseline $100 (Output: $120)
-       - medium_beds: Baseline $220 (Output: $264)
-       - full_property: Baseline $500 (Output: $600)
-       - Work scaling: Assess overgrowth density and mulch volume requirements. Estimate the base cost for this level of effort, then scale the entire result up by 20% (+20% markup).
+       - small_beds: Starting rate of $400 (for small landscaping beds)
+       - medium_beds: Starting rate of $500 (for medium landscaping beds)
+       - full_property: Starting rate of $700 (for full property landscaping)
+       - Work scaling: Assess overgrowth density and mulch volume requirements. Estimate the cost for this level of effort (minimum $400).
 
     6. Premium Curb Class Hardware Bundle:
-       - flat_rate: Baseline $400 (Output: $480)
-       - Work scaling: Estimate the base cost, then scale the entire result up by 20% (+20% markup).
+       - flat_rate: Starting rate of $650 (for post mailbox, address plaque, and lights installation)
+       - Work scaling: Estimate the cost (minimum $650).
 
-    Ensure you analyze the property photos to identify size/condition. Calculate a specific single estimated price for the work (which MUST be at least the +20% marked-up starting rate for the classified bracket and dynamically scaled upwards depending on the required effort). Determine the bracket name matching the workload.
+    Ensure you analyze the property photos to identify size/condition. Calculate a specific single estimated price for the work (which MUST be at least the starting rate for the classified bracket and dynamically scaled upwards depending on the required effort). Determine the bracket name matching the workload.
     Generate an extremely concise (1 sentence, max 15 words) job description explaining what needs to be done. Do NOT include any price numbers or cost references in this description.
 
     For the overall response, produce TWO distinct summaries:

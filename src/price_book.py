@@ -37,9 +37,32 @@ async def load_or_fetch_price_book(skill_def: dict) -> list[dict]:
         for entry in book:
             price = medusa_prices.get(entry["name"])
             if price is not None:
+                yaml_base_str = yaml_services.get(entry["name"], {}).get("basePrice") or "1"
+                try:
+                    yaml_base = float(yaml_base_str)
+                except ValueError:
+                    yaml_base = 1.0
+                factor = price / yaml_base if yaml_base > 0 else 1.0
+
                 entry["basePrice"] = f"{price:.0f}"
                 entry["source"] = "medusa"
-        logger.info("Price book: %d services from Medusa", len(medusa_prices))
+
+                # Scale flat_rate proportionally
+                if "flat_rate" in entry:
+                    fr = entry["flat_rate"]
+                    if "low" in fr:
+                        fr["low"] = float(fr["low"]) * factor
+                    if "high" in fr:
+                        fr["high"] = float(fr["high"]) * factor
+
+                # Scale brackets proportionally
+                if "brackets" in entry:
+                    for br in entry["brackets"]:
+                        if "low" in br:
+                            br["low"] = float(br["low"]) * factor
+                        if "high" in br:
+                            br["high"] = float(br["high"]) * factor
+        logger.info("Price book: %d services from Medusa (scaled dynamically)", len(medusa_prices))
         return book
 
     if TWENTY_BASE_URL and TWENTY_TOKEN:
