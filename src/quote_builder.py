@@ -240,7 +240,7 @@ Respond with ONLY a JSON object as specified above."""
                 result = json.loads(fixed)
             except json.JSONDecodeError:
                 # Re-raise the original parse error, not the repair attempt's.
-                raise e
+                raise e from None
         
         # Ensure single price fields are present and ranges match the single price
         if "itemized_quote" in result:

@@ -128,7 +128,7 @@ async def check_region_consistency(
                 result = json.loads(fixed)
             except json.JSONDecodeError:
                 # Re-raise the original parse error, not the repair attempt's.
-                raise e
+                raise e from None
         warnings = result.get("warnings", [])
         if not result.get("consistent", True):
             warnings.insert(0, f"Climate/region mismatch detected for ZIP {zip_code}.")

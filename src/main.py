@@ -9,12 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from src.config import settings
-from src.skill_loader import load_skill
 from src.price_book import load_or_fetch_price_book
-from src.vision import analyze_images
-from src.validator import validate_estimate_request
-from src.region_check import check_region_consistency
 from src.quote_builder import build_quote
+from src.region_check import check_region_consistency
+from src.skill_loader import load_skill
+from src.validator import validate_estimate_request
+from src.vision import analyze_images
 
 logger = logging.getLogger("bidagent")
 

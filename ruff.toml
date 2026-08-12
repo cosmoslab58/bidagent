@@ -1,0 +1,24 @@
+# Explicit rule selection so local and CI agree.
+#
+# Without this the gate is whatever the installed ruff version defaults to:
+# 0.14 and 0.16 disagree, so a clean local run failed CI with 22 findings that
+# had nothing to do with the change being made. requirements-dev.txt pins the
+# version to match.
+
+target-version = "py312"
+
+[lint]
+select = [
+    "E4",   # pycodestyle: imports
+    "E7",
+    "E9",
+    "F",    # pyflakes: undefined names, unused imports
+    "I",    # isort: import ordering
+    "B",    # bugbear: likely bugs
+]
+
+ignore = [
+    # FastAPI's whole dependency model is function calls in argument defaults
+    # (File(...), Form(...), Depends(...)). Not a mutable-default bug here.
+    "B008",
+]

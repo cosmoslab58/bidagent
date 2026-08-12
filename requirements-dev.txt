@@ -1,4 +1,7 @@
 -r requirements.txt
 
 pytest>=8.0
-ruff>=0.6
+# Pinned to a minor range: ruff changes its default rule set between minors, so
+# an unpinned range makes CI fail on findings unrelated to the change at hand.
+# ruff.toml selects the rules explicitly; this keeps the version in step.
+ruff>=0.16,<0.17

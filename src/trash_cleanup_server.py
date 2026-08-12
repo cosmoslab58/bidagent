@@ -4,7 +4,7 @@ import json
 import os
 import sys
 import urllib.request
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 TOKEN = os.environ.get("CC_TOKEN", "***")
 HOST = "curbclass.localhost:3000" 

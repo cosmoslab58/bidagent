@@ -6,10 +6,9 @@ from __future__ import annotations
 
 import unittest
 
-from src.validator import validate_estimate_request
-from src.quote_builder import _flat_quote_fallback
 from src.price_book import _yaml_to_book
-
+from src.quote_builder import _flat_quote_fallback
+from src.validator import validate_estimate_request
 
 # ---------------------------------------------------------------------------
 # Validator tests
