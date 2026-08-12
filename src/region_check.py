@@ -126,7 +126,8 @@ async def check_region_consistency(
             fixed = re.sub(r'(true|false|\d+|\]|")\s+\n?\s+"', r'\1,\n      "', clean_safe)
             try:
                 result = json.loads(fixed)
-            except:
+            except json.JSONDecodeError:
+                # Re-raise the original parse error, not the repair attempt's.
                 raise e
         warnings = result.get("warnings", [])
         if not result.get("consistent", True):

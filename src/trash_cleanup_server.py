@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Simple HTTP server for trash cleanup. No Node-RED dashboard needed."""
-import json, os, sys, urllib.request
+import json
+import os
+import sys
+import urllib.request
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 TOKEN = os.environ.get("CC_TOKEN", "***")
@@ -29,7 +32,7 @@ class Handler(BaseHTTPRequestHandler):
                     resp = urllib.request.urlopen(search_req, timeout=10)
                     data = json.loads(resp.read())
                     records = data.get("data", {}).get(obj_type, [])
-                except Exception as e:
+                except Exception:
                     break
                 if not records:
                     break
@@ -39,7 +42,7 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         urllib.request.urlopen(del_req, timeout=10)
                         deleted += 1
-                    except:
+                    except Exception:
                         failed += 1
                 page += 1
             results[obj_type] = {"deleted": deleted, "failed": failed}
@@ -52,7 +55,7 @@ if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8343
     server = HTTPServer(("0.0.0.0", port), Handler)
     print(f"Serving trash cleanup on port {port}", flush=True)
-    print(f"  POST /trash-cleanup/curbclass", flush=True)
+    print("  POST /trash-cleanup/curbclass", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

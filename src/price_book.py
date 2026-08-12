@@ -46,21 +46,23 @@ async def load_or_fetch_price_book(skill_def: dict) -> list[dict]:
                 entry["basePrice"] = f"{price:.0f}"
                 entry["source"] = "medusa"
 
-                # Scale flat_rate proportionally
+                # Scale flat_rate proportionally. Round to cents: the factor is a
+                # float ratio, so an exact price like 750 would otherwise surface
+                # as 749.9999999999999 and reach the customer's quote that way.
                 if "flat_rate" in entry:
                     fr = entry["flat_rate"]
                     if "low" in fr:
-                        fr["low"] = float(fr["low"]) * factor
+                        fr["low"] = round(float(fr["low"]) * factor, 2)
                     if "high" in fr:
-                        fr["high"] = float(fr["high"]) * factor
+                        fr["high"] = round(float(fr["high"]) * factor, 2)
 
                 # Scale brackets proportionally
                 if "brackets" in entry:
                     for br in entry["brackets"]:
                         if "low" in br:
-                            br["low"] = float(br["low"]) * factor
+                            br["low"] = round(float(br["low"]) * factor, 2)
                         if "high" in br:
-                            br["high"] = float(br["high"]) * factor
+                            br["high"] = round(float(br["high"]) * factor, 2)
         logger.info("Price book: %d services from Medusa (scaled dynamically)", len(medusa_prices))
         return book
 

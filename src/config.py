@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     cf_access_client_id: str = ""
     cf_access_client_secret: str = ""
 
+    # Bearer token for /api/v1/estimate. Empty (the default) leaves the endpoint
+    # open, exactly as before, so setting this on the caller and the service can
+    # be sequenced without an outage.
+    api_token: str = ""
+    # Only server-side callers use this API, so no browser origin is allowed by
+    # default. Comma-separated if one is ever needed.
+    cors_allow_origins: list[str] = []
+
     model_config = {
         "env_file": str(Path(__file__).resolve().parent.parent / "config" / ".env"),
         "extra": "ignore",

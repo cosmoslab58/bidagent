@@ -1,6 +1,6 @@
 """
-Unit tests for /opt/bidagent.
-Run with: cd /opt/bidagent && python -m unittest tests.test_bidagent -v
+Unit tests for bidagent.
+Run with: cd ~/projects/bidagent && python -m pytest tests/ -q
 """
 from __future__ import annotations
 

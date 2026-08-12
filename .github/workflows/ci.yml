@@ -1,0 +1,68 @@
+name: CI
+
+# This repo had no CI at all, which is how a proposed change importing an
+# undeclared dependency (async_lru) reached review as mergeable: nothing would
+# have caught that the container then fails to start.
+#
+# Deliberately GitHub-hosted, not the self-hosted org runner used by the private
+# app repos. bidagent is public, and a self-hosted runner would execute code from
+# fork pull requests on bodhi. GitHub-hosted minutes are free for public repos.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check src/ tests/
+
+      - name: Unit tests
+        run: pytest tests/ -q
+
+      # The check that would have caught the async_lru breakage: importing the
+      # app proves every module it pulls in is actually installable from
+      # requirements.txt, independently of whether any test happens to touch it.
+      - name: Import smoke test
+        run: python -c "import src.main; print('src.main imported')"
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Building the image verifies the Dockerfile installs what the app needs.
+      # requirements.txt and the Dockerfile used to be separate hand-maintained
+      # lists, so an image could build clean while missing a new dependency.
+      - name: Build image
+        run: docker build -t bidagent:ci .
+
+      - name: Container starts and serves /healthz
+        run: |
+          docker run -d --name bidagent-ci -p 8000:8000 bidagent:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/healthz; then
+              echo "healthz OK"
+              docker rm -f bidagent-ci
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "healthz never responded"
+          docker logs bidagent-ci
+          docker rm -f bidagent-ci
+          exit 1

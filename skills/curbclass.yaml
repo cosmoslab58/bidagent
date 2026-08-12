@@ -199,4 +199,10 @@ settings:
   currency: "USD"
   typical_timeline_days: "1-3"
   travel_fee: 0
+  # Used when a requested service has no price book entry. The quote builder
+  # reads this rather than carrying its own copy of the number.
   minimum_estimate: 150
+  # Ceiling guard: a line item may not exceed this multiple of the highest
+  # figure the price book states for that service. Catches a hallucinated
+  # order of magnitude before it reaches a customer. Set to 0 to disable.
+  max_price_multiple: 4

@@ -1,11 +1,10 @@
 import logging
-import posixpath
+import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import urlparse
 from typing import Optional
 
-import httpx
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -19,25 +18,63 @@ from src.quote_builder import build_quote
 
 logger = logging.getLogger("bidagent")
 
-app = FastAPI(title="BidAgent", version="2.0.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 skill: dict = {}
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Replaces the deprecated @app.on_event("startup") hook.
     global skill
     skill_path = Path(__file__).resolve().parent.parent / "skills" / f"{settings.active_skill}.yaml"
     skill = load_skill(str(skill_path))
-    logger.info("BidAgent ready | skill=%s | model=%s", settings.active_skill, settings.llm_model_name)
+    logger.info(
+        "BidAgent ready | skill=%s | model=%s | auth=%s",
+        settings.active_skill,
+        settings.llm_model_name,
+        "on" if settings.api_token else "off",
+    )
+    yield
+
+
+app = FastAPI(title="BidAgent", version="2.0.0", lifespan=lifespan)
+
+# Only curbclass calls this service, server-side. It is not reached from a
+# browser, so the previous allow_origins=["*"] with allow_credentials=True was
+# both unnecessary and an invalid combination that browsers reject outright.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allow_origins,
+    allow_methods=["POST"],
+    allow_headers=["*"],
+)
+
+
+async def require_token(authorization: str = Header(default="")):
+    """Bearer auth, active only when BIDAGENT_API_TOKEN is configured.
+
+    Left unset the service behaves exactly as before, so enabling auth is a
+    deliberate two-step: set the token here, then on the caller. That ordering
+    cannot break the live lead path.
+    """
+    expected = settings.api_token
+    if not expected:
+        return
+
+    supplied = authorization.removeprefix("Bearer ").strip()
+    if not secrets.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail="Invalid or missing API token")
+
+
+@app.get("/healthz")
+async def healthz():
+    """Cheap liveness probe — no LLM call, safe for Uptime Kuma to poll."""
+    return {
+        "status": "ok",
+        "skill": settings.active_skill,
+        "model": settings.llm_model_name,
+        "services": len(skill.get("services", {}) or {}),
+        "auth": bool(settings.api_token),
+    }
 
 
 class EstimateResponse(BaseModel):
@@ -58,14 +95,18 @@ async def estimate(
     requested_services: str = Form(...),
     zip_code: str = Form(""),
     images: list[UploadFile] = File(default=[]),
-    image_urls: str = Form(""),
     customer_name: str = Form(""),
     customer_email: str = Form(""),
     customer_phone: str = Form(""),
+    _auth: None = Depends(require_token),
 ):
+    # Photos arrive as multipart uploads. An image_urls form field used to exist
+    # alongside this, letting a caller make the server fetch arbitrary URLs from
+    # inside the network; nothing ever populated it (curbclass sends multipart
+    # blobs), so it was removed rather than left as an unauthenticated fetch
+    # primitive.
     image_buffers = []
-    
-    # 1. Read files uploaded in the request
+
     for img in images:
         data = await img.read()
         image_buffers.append({
@@ -74,34 +115,6 @@ async def estimate(
             "data": data,
             "size": len(data)
         })
-
-    # 2. Fetch files from provided image URLs
-    if image_urls:
-        urls = [u.strip() for u in image_urls.split(",") if u.strip()]
-        if urls:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                for url in urls:
-                    try:
-                        response = await client.get(url, follow_redirects=True)
-                        response.raise_for_status()
-                        data = response.content
-                        content_type = response.headers.get("content-type")
-                        parsed_url = urlparse(url)
-                        filename = posixpath.basename(parsed_url.path)
-                        if not filename:
-                            filename = "photo.jpg"
-                        image_buffers.append({
-                            "filename": filename,
-                            "content_type": content_type,
-                            "data": data,
-                            "size": len(data)
-                        })
-                    except Exception as e:
-                        logger.warning("Failed to fetch image from URL %s: %s", url, e)
-                        return EstimateResponse(
-                            status="rejected",
-                            rejection=f"Failed to download image from URL: {url} ({str(e)})"
-                        )
 
     try:
         validate_estimate_request(requested_services, image_buffers, skill)
