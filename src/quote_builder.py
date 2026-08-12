@@ -11,6 +11,7 @@ import logging
 from openai import OpenAI
 
 from src.config import settings
+from src.model_json import parse_model_json
 
 logger = logging.getLogger("bidagent.quote")
 
@@ -234,62 +235,8 @@ Respond with ONLY a JSON object as specified above."""
             temperature=0.2,
         )
         raw = response.choices[0].message.content or ""
-        
-        # Clean JSON structure
-        clean = raw.strip()
-        
-        # Strip markdown code fences if present
-        if clean.startswith("```"):
-            first_newline = clean.find("\n")
-            if first_newline != -1:
-                clean = clean[first_newline:].strip()
-            if clean.endswith("```"):
-                clean = clean[:-3].strip()
-        
-        # Extract only the JSON part between first { and last }
-        start = clean.find('{')
-        end = clean.rfind('}')
-        if start >= 0 and end > start:
-            clean = clean[start:end+1]
-            
-        # Sanitize raw newlines/tabs inside string literals
-        chars = []
-        in_string = False
-        escape = False
-        for c in clean:
-            if c == '"' and not escape:
-                in_string = not in_string
-                chars.append(c)
-            elif c == '\\' and in_string and not escape:
-                escape = True
-                chars.append(c)
-            elif in_string:
-                if escape:
-                    escape = False
-                if c == '\n':
-                    chars.append('\\n')
-                elif c == '\r':
-                    chars.append('\\r')
-                elif c == '\t':
-                    chars.append('\\t')
-                else:
-                    chars.append(c)
-            else:
-                chars.append(c)
-        clean = "".join(chars)
-        
-        try:
-            result = json.loads(clean)
-        except json.JSONDecodeError as e:
-            import re
-            # Try fixing missing commas between fields
-            fixed = re.sub(r'(true|false|\d+|\]|")\s+\n?\s+"', r'\1,\n      "', clean)
-            try:
-                result = json.loads(fixed)
-            except json.JSONDecodeError:
-                # Re-raise the original parse error, not the repair attempt's.
-                raise e from None
-        
+        result = parse_model_json(raw)
+
         # Ensure single price fields are present and ranges match the single price
         if "itemized_quote" in result:
             # 2. Add any requested services that the LLM completely omitted

@@ -5,12 +5,12 @@ Prompt comes from the skill file, not hardcoded Python.
 """
 
 import base64
-import json
 import logging
 
 from openai import OpenAI
 
 from src.config import settings
+from src.model_json import parse_model_json
 
 logger = logging.getLogger("bidagent.vision")
 
@@ -66,12 +66,7 @@ async def analyze_images(
             temperature=0.1,
         )
         raw = response.choices[0].message.content or ""
-        clean = raw.replace("```json", "").replace("```", "").strip()
-        start = clean.find('{')
-        end = clean.rfind('}')
-        if start >= 0 and end > start:
-            clean = clean[start:end+1]
-        result = json.loads(clean)
+        result = parse_model_json(raw)
     except Exception as e:
         logger.warning("Vision LLM error: %s — allowing through", e)
         return True, "Vision check unavailable — proceeding."
