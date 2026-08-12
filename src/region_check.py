@@ -6,7 +6,6 @@ with the provided zip code (climate, vegetation, etc.).
 import base64
 import json
 import logging
-from typing import Any
 
 from openai import OpenAI
 

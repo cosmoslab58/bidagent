@@ -3,9 +3,6 @@ Request validator — checks for required fields, image count, format, etc.
 """
 
 import logging
-from typing import Any
-
-from fastapi import UploadFile
 
 logger = logging.getLogger("bidagent.validator")
 
