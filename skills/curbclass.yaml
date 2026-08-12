@@ -15,33 +15,33 @@ services:
     display: "Driveway & Concrete Deep Clean"
     category: "Restoration"
     medusa_handle: "driveway-concrete-deep-clean"
-    basePrice: "450"
+    basePrice: "350"
     brackets:
       - name: small_2_car
         label: "Small (2-car driveway)"
-        low: 450
+        low: 350
       - name: medium_4_car
         label: "Medium (4-car/wide driveway)"
-        low: 550
+        low: 425
       - name: large_circular
         label: "Large (circular/long driveway)"
-        low: 750
+        low: 575
 
   Low-Pressure House Wash:
     display: "Low-Pressure House Wash"
     category: "Cleaning"
     medusa_handle: "low-pressure-house-wash"
-    basePrice: "350"
+    basePrice: "400"
     brackets:
       - name: townhome_1_story
         label: "Townhome / 1-story"
-        low: 350
+        low: 400
       - name: suburban_2_story
         label: "Suburban 2-story"
-        low: 450
+        low: 525
       - name: estate_large
         label: "Large estate"
-        low: 650
+        low: 750
 
   Exterior Wood & Railing Repair:
     display: "Exterior Wood & Railing Repair"
@@ -63,33 +63,33 @@ services:
     display: "Front Door & Accent Painting"
     category: "Aesthetics"
     medusa_handle: "front-door-accent-painting"
-    basePrice: "300"
+    basePrice: "350"
     flat_rate:
-      low: 300
+      low: 350
 
   Bush Trimming & Dark Mulching:
     display: "Bush Trimming & Dark Mulching"
     category: "Landscaping"
     medusa_handle: "bush-trimming-dark-mulching"
-    basePrice: "400"
+    basePrice: "450"
     brackets:
       - name: small_beds
         label: "Small beds"
-        low: 400
+        low: 450
       - name: medium_beds
         label: "Medium beds"
-        low: 500
+        low: 575
       - name: full_property
         label: "Full property"
-        low: 700
+        low: 800
 
   Premium Curb Class Hardware Bundle:
     display: "Premium Curb Class Hardware Bundle"
     category: "Hardware"
     medusa_handle: "premium-curb-class-hardware-bundle"
-    basePrice: "650"
+    basePrice: "750"
     flat_rate:
-      low: 650
+      low: 750
 
 image_rules:
   min_photos: 1
@@ -126,39 +126,30 @@ prompts:
   quote: |
     For each requested service, assess the work required from the photos and determine the appropriate estimate. The estimate MUST be at least the standard baseline starting price listed below, and should only go up from there depending on the complexity, size, and prep work observed in the photos. Do not estimate below these starting baselines.
 
-    Use these standard starting rates as your minimum reference points:
+    Pricing comes from the "Available pricing data" supplied with this request. That is
+    the authoritative source and is kept in sync with the shop catalogue, so never use
+    remembered or assumed prices. For each service, read its brackets (or flat_rate) from
+    that data, classify the property into the matching bracket from the photos, and
+    estimate at or above that bracket's `low`. Go higher only where the photos show
+    complexity, size, or prep work that justifies it.
 
-    1. Driveway & Concrete Deep Clean:
-       - small_2_car: Starting rate of $450 (for small 2-car driveways in good condition)
-       - medium_4_car: Starting rate of $550 (for medium 4-car/wide driveways)
-       - large_circular: Starting rate of $750 (for large circular/long driveways)
-       - Work scaling: Evaluate size and condition (such as oil staining or heavy organic growth). Estimate the cost for this level of effort (minimum $450).
+    Use the `name` field exactly as it appears in the pricing data when reporting a
+    service, so the quote can be matched back to the catalogue.
 
-    2. Low-Pressure House Wash:
-       - townhome_1_story: Starting rate of $350 (for townhomes/1-story homes)
-       - suburban_2_story: Starting rate of $450 (for typical suburban 2-story homes)
-       - estate_large: Starting rate of $650 (for large estate homes)
-       - Work scaling: Assess height, multi-level complexity, and mildew buildup. Estimate the cost for this level of effort (minimum $350).
+    How to classify each service from the photos:
 
-    3. Exterior Wood & Railing Repair:
-       - minor: Starting rate of $350 (for minor repairs in 1-2 areas)
-       - moderate: Starting rate of $500 (for moderate repairs in 3-5 areas)
-       - extensive: Starting rate of $750 (for extensive repair/full porch)
-       - Work scaling: Assess deterioration severity. Estimate the cost for this level of effort (minimum $350).
-
-    4. Front Door & Accent Painting:
-       - flat_rate: Starting rate of $300 (for standard front door and trim accent painting)
-       - Work scaling: Assess accent painting scope (such as front door, shutters, or columns). Estimate the cost for this level of effort (minimum $300).
-
-    5. Bush Trimming & Dark Mulching:
-       - small_beds: Starting rate of $400 (for small landscaping beds)
-       - medium_beds: Starting rate of $500 (for medium landscaping beds)
-       - full_property: Starting rate of $700 (for full property landscaping)
-       - Work scaling: Assess overgrowth density and mulch volume requirements. Estimate the cost for this level of effort (minimum $400).
-
-    6. Premium Curb Class Hardware Bundle:
-       - flat_rate: Starting rate of $650 (for post mailbox, address plaque, and lights installation)
-       - Work scaling: Estimate the cost (minimum $650).
+    1. Driveway & Concrete Deep Clean: evaluate size and condition, such as oil staining
+       or heavy organic growth. Bracket on driveway size.
+    2. Low-Pressure House Wash: assess height, multi-level complexity, and mildew
+       buildup. Bracket on home size.
+    3. Exterior Wood & Railing Repair: assess deterioration severity. Bracket on how many
+       areas need work.
+    4. Front Door & Accent Painting: flat rate. Assess accent scope, such as the front
+       door, shutters, or columns.
+    5. Bush Trimming & Dark Mulching: assess overgrowth density and mulch volume.
+       Bracket on bed size.
+    6. Premium Curb Class Hardware Bundle: flat rate. Post mailbox, address plaque, and
+       light installation.
 
     Ensure you analyze the property photos to identify size/condition. Calculate a specific single estimated price for the work (which MUST be at least the starting rate for the classified bracket and dynamically scaled upwards depending on the required effort). Determine the bracket name matching the workload.
     Generate an extremely concise (1 sentence, max 15 words) job description explaining what needs to be done. Do NOT include any price numbers or cost references in this description.
