@@ -62,6 +62,59 @@ class ServiceCeilingTests(unittest.TestCase):
         self.assertIsNone(_service_ceiling(PRICE_BOOK[0], 350.0, disabled))
 
 
+class ServiceMatchingTests(unittest.TestCase):
+    """The model does not reliably echo the service name it was given.
+
+    Found by an end-to-end run: a request for "Front Door & Accent Painting"
+    came back as "front_door_accent_painting", the exact-match lookup missed,
+    and the item silently took the generic 150 minimum instead of that
+    service's real 350 floor.
+    """
+
+    def test_snake_case_from_the_model_matches_the_price_book(self) -> None:
+        result = {
+            "itemized_quote": [
+                {"service": "front_door_accent_painting", "price": 200}
+            ]
+        }
+        apply_price_guards(result, PRICE_BOOK, SKILL)
+
+        item = result["itemized_quote"][0]
+        self.assertEqual(item["floor"], 350.0, "must use the service's real floor")
+        self.assertEqual(item["price"], 350.0, "a price under the floor is raised to it")
+        self.assertEqual(result.get("warnings", []), [])
+
+    def test_genuinely_unknown_service_is_still_flagged(self) -> None:
+        result = {"itemized_quote": [{"service": "gutter_cleaning", "price": 200}]}
+        apply_price_guards(result, PRICE_BOOK, SKILL)
+
+        self.assertTrue(
+            any("not in the price book" in w for w in result["warnings"]),
+            "normalizing must not silence genuinely unrecognized services",
+        )
+
+
+class RejectionTests(unittest.TestCase):
+    """A refused quote must not become a priced one.
+
+    Found by an end-to-end run: the model reported that the photos showed a
+    walkway and no driveway, and the service still returned status "estimate"
+    with a 700.00 total including a fabricated driveway-cleaning line item.
+    """
+
+    def test_rejection_suppresses_fabricated_line_items(self) -> None:
+        from src.quote_builder import _should_fabricate_missing_services
+
+        self.assertFalse(
+            _should_fabricate_missing_services({"rejection": "No driveway visible"})
+        )
+
+    def test_normal_result_still_fills_omitted_services(self) -> None:
+        from src.quote_builder import _should_fabricate_missing_services
+
+        self.assertTrue(_should_fabricate_missing_services({"itemized_quote": []}))
+
+
 class PriceGuardTests(unittest.TestCase):
     def test_hallucinated_price_is_capped_and_warned(self) -> None:
         result = {
@@ -111,6 +164,23 @@ class PriceGuardTests(unittest.TestCase):
         self.assertTrue(
             any("not in the price book" in w for w in result["warnings"]),
             "an invented price for an unknown service must be surfaced",
+        )
+
+    def test_every_item_gets_a_floor_including_late_additions(self) -> None:
+        # Regression: an end-to-end run returned floor=None because the guards
+        # ran before the step that appends services the model omitted, so those
+        # items bypassed the checks entirely.
+        result = {
+            "itemized_quote": [
+                {"service": "Driveway & Concrete Deep Clean", "price": 600},
+                {"service": "Front Door & Accent Painting", "price": 350},
+            ]
+        }
+        apply_price_guards(result, PRICE_BOOK, SKILL)
+
+        self.assertTrue(
+            all("floor" in item for item in result["itemized_quote"]),
+            "every line item must carry the floor that was applied to it",
         )
 
     def test_floor_is_published_for_callers(self) -> None:

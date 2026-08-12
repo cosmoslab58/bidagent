@@ -1,5 +1,6 @@
 """Price book — prefers Medusa pricing, then falls back to Twenty CRM and YAML defaults."""
 
+import copy
 import logging
 import re
 
@@ -161,9 +162,14 @@ def _yaml_to_book(yaml_services: dict) -> list[dict]:
             entry["medusa_handle"] = svc["medusa_handle"]
         if svc.get("basePrice") is not None:
             entry["basePrice"] = svc["basePrice"]
+        # Deep-copied, not aliased. The Medusa overlay scales these numbers in
+        # place; sharing the reference meant it mutated the loaded skill itself,
+        # so every request re-scaled the already-scaled figures. Prices drifted
+        # further from the book the longer the process ran — a service with a
+        # factor above 1 inflated on each call and one below 1 decayed.
         if "flat_rate" in svc:
-            entry["flat_rate"] = svc["flat_rate"]
+            entry["flat_rate"] = copy.deepcopy(svc["flat_rate"])
         elif "brackets" in svc:
-            entry["brackets"] = svc["brackets"]
+            entry["brackets"] = copy.deepcopy(svc["brackets"])
         book.append(entry)
     return book

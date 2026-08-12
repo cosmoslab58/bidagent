@@ -65,6 +65,47 @@ def _service_ceiling(pricing: dict | None, floor: float, skill_def: dict) -> flo
     return round(highest * multiple, 2)
 
 
+def _normalize_service_key(value: str | None) -> str:
+    """Reduce a service name to a form that survives the model's reformatting.
+
+    Matching was exact against `name` or `display`, but the model does not
+    reliably echo either: a request for "Front Door & Accent Painting" came back
+    as "front_door_accent_painting". The lookup then missed, the item silently
+    fell back to the generic minimum instead of that service's real floor, and
+    the ceiling was computed from no price book entry at all.
+    """
+    if not value:
+        return ""
+    return "".join(ch for ch in str(value).lower() if ch.isalnum())
+
+
+def _find_pricing(price_book: list[dict], *candidates: str | None) -> dict | None:
+    """Locate a price book entry by any of the names the model might have used."""
+    wanted = {_normalize_service_key(c) for c in candidates if c}
+    wanted.discard("")
+    if not wanted:
+        return None
+
+    for entry in price_book:
+        keys = {
+            _normalize_service_key(entry.get("name")),
+            _normalize_service_key(entry.get("display")),
+        }
+        if keys & wanted:
+            return entry
+    return None
+
+
+def _should_fabricate_missing_services(result: dict) -> bool:
+    """Whether to fill in requested services the model left out of the quote.
+
+    Not when it declined to quote. Filling them in turned "I cannot assess this
+    from these photos" into a priced quote for exactly the service it said it
+    could not assess.
+    """
+    return not result.get("rejection")
+
+
 def apply_price_guards(result: dict, price_book: list[dict], skill_def: dict) -> dict:
     """Normalize and bound the prices the model returned.
 
@@ -79,10 +120,7 @@ def apply_price_guards(result: dict, price_book: list[dict], skill_def: dict) ->
 
     for item in result.get("itemized_quote") or []:
         svc_name = item.get("service")
-        pricing = next(
-            (p for p in price_book if p.get("name") == svc_name or p.get("display") == svc_name),
-            None,
-        )
+        pricing = _find_pricing(price_book, svc_name, item.get("label"))
 
         min_price = _service_floor(pricing, skill_def)
         if not pricing:
@@ -118,6 +156,16 @@ def apply_price_guards(result: dict, price_book: list[dict], skill_def: dict) ->
                 value = float(value)
             except (TypeError, ValueError):
                 continue
+
+            # Raise a positive price that still sits under the service floor.
+            # Only missing and non-positive prices were corrected before, so a
+            # model that quoted under the book was left alone here and relied on
+            # the caller to notice. Silent by design: this is pricing policy,
+            # not an anomaly worth an operator warning.
+            if value < min_price:
+                item[field] = min_price
+                value = min_price
+
             if ceiling and value > ceiling:
                 guard_warnings.append(
                     f"'{svc_name}' {field} of {value:.0f} exceeded the expected "
@@ -244,28 +292,35 @@ Respond with ONLY a JSON object as specified above."""
         
         # Ensure single price fields are present and ranges match the single price
         if "itemized_quote" in result:
-            apply_price_guards(result, price_book, skill_def)
-
             # 2. Add any requested services that the LLM completely omitted
             existing_services = set()
             for item in result["itemized_quote"]:
-                if item.get("service"):
-                    existing_services.add(item.get("service").lower())
-                if item.get("label"):
-                    existing_services.add(item.get("label").lower())
+                # Normalized so a service the model returned as
+                # "front_door_accent_painting" is recognized as already present
+                # and not appended a second time at its starting rate.
+                existing_services.add(_normalize_service_key(item.get("service")))
+                existing_services.add(_normalize_service_key(item.get("label")))
+            existing_services.discard("")
 
-            for requested in services_list:
-                pricing = next((p for p in price_book if p["name"].lower() == requested.lower() or p["display"].lower() == requested.lower()), None)
+            # Do not invent line items for a quote the model declined to give.
+            # Filling in the missing services at their starting rate turned "I
+            # cannot assess this from these photos" into a priced quote for
+            # exactly the service it could not assess.
+            fabricate_missing = _should_fabricate_missing_services(result)
+
+            for requested in services_list if fabricate_missing else []:
+                pricing = _find_pricing(price_book, requested)
                 if pricing:
                     key = pricing["name"]
                     display_name = pricing.get("display", key)
-                    if key.lower() not in existing_services and display_name.lower() not in existing_services:
-                        min_price = 150.0
-                        if "flat_rate" in pricing:
-                            min_price = float(pricing["flat_rate"]["low"])
-                        elif "brackets" in pricing and pricing["brackets"]:
-                            min_price = float(pricing["brackets"][0]["low"])
-                        
+                    if (
+                        _normalize_service_key(key) not in existing_services
+                        and _normalize_service_key(display_name) not in existing_services
+                    ):
+                        # Second copy of the floor logic, hardcoding 150.0 again.
+                        # Shares _service_floor with the guards now.
+                        min_price = _service_floor(pricing, skill_def)
+
                         result["itemized_quote"].append({
                             "service": key,
                             "label": display_name,
@@ -276,6 +331,11 @@ Respond with ONLY a JSON object as specified above."""
                             "description": "Requested service quoted at starting rate."
                         })
             
+            # Guards run after every line item exists — including the ones added
+            # above — so nothing escapes the floor/ceiling checks, and before the
+            # totals below so they reflect any capped price.
+            apply_price_guards(result, price_book, skill_def)
+
             # 3. Recalculate totals
             total_val = sum(item.get("price", 0.0) for item in result["itemized_quote"] if "error" not in item)
             total_low_val = sum(item.get("price_low", 0.0) for item in result["itemized_quote"] if "error" not in item)

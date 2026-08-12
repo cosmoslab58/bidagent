@@ -65,6 +65,27 @@ async def require_token(authorization: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Invalid or missing API token")
 
 
+def _as_text(value) -> str:
+    """Coerce a model-supplied field to a string.
+
+    The LLM is not consistent about shape: `rejection` comes back as a plain
+    string on one call and as {"reason": "..."} on the next. The response model
+    declares it a string, so the inconsistent case raised a validation error and
+    the endpoint returned 500 — turning a legitimate refusal into an outage for
+    the caller.
+    """
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        for key in ("reason", "message", "detail", "text"):
+            if isinstance(value.get(key), str):
+                return value[key]
+        return "; ".join(f"{k}: {v}" for k, v in value.items())
+    if isinstance(value, (list, tuple)):
+        return "; ".join(_as_text(v) for v in value if v is not None)
+    return str(value)
+
+
 @app.get("/healthz")
 async def healthz():
     """Cheap liveness probe — no LLM call, safe for Uptime Kuma to poll."""
@@ -138,7 +159,20 @@ async def estimate(
     result = await build_quote(services_list, price_book, image_buffers, skill)
 
     result["warnings"] = geo_warnings + result.get("warnings", [])
-    result["status"] = "estimate"
+
+    for field in ("rejection", "description", "contractor_notes"):
+        if field in result:
+            result[field] = _as_text(result[field])
+
+    # Honour a refusal from the quote step. This was previously hardcoded to
+    # "estimate", which overrode the model's own rejection: it would report that
+    # the photos showed no driveway, and the caller still received status
+    # "estimate" with a fabricated line item for driveway cleaning.
+    if result.get("rejection"):
+        result["status"] = "rejected"
+        logger.warning("Quote rejected: %s", result["rejection"])
+    else:
+        result["status"] = "estimate"
 
     return EstimateResponse(**result)
 
