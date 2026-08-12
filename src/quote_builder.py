@@ -11,7 +11,7 @@ import logging
 from openai import OpenAI
 
 from src.config import settings
-from src.model_json import parse_model_json
+from src.model_json import as_text, parse_model_json
 
 logger = logging.getLogger("bidagent.quote")
 
@@ -105,6 +105,21 @@ def _should_fabricate_missing_services(result: dict) -> bool:
     could not assess.
     """
     return not result.get("rejection")
+
+
+def _declined_services(result: dict) -> list[dict]:
+    """Per-service declines, from the model's `unquotable` list.
+
+    A whole-response `rejection` is all or nothing, so before this existed the
+    only way to say "there is no driveway here, but the rest is quotable" was
+    to omit the line item, which the fill-in below then re-added at the
+    starting rate. Every model tested billed a driveway on a property whose
+    only concrete was a front walkway.
+    """
+    declined = result.get("unquotable")
+    if not isinstance(declined, list):
+        return []
+    return [d for d in declined if isinstance(d, dict) and d.get("service")]
 
 
 def apply_price_guards(result: dict, price_book: list[dict], skill_def: dict) -> dict:
@@ -248,6 +263,22 @@ Respond with ONLY a JSON object as specified above."""
                 existing_services.add(_normalize_service_key(item.get("service")))
                 existing_services.add(_normalize_service_key(item.get("label")))
             existing_services.discard("")
+
+            # A service the model explicitly declined counts as handled, so the
+            # fill-in below leaves it alone instead of restoring it at the
+            # starting rate. The reason travels to the caller as a warning.
+            declined_warnings: list[str] = []
+            for declined in _declined_services(result):
+                pricing = _find_pricing(price_book, declined.get("service"))
+                display_name = (pricing or {}).get("display") or declined["service"]
+                existing_services.add(_normalize_service_key(declined["service"]))
+                if pricing:
+                    existing_services.add(_normalize_service_key(pricing["name"]))
+                    existing_services.add(_normalize_service_key(display_name))
+                reason = as_text(declined.get("reason")) or "not visible in the photos"
+                declined_warnings.append(f"{display_name} not quoted: {reason}")
+            if declined_warnings:
+                result["warnings"] = list(result.get("warnings") or []) + declined_warnings
 
             # Do not invent line items for a quote the model declined to give.
             # Filling in the missing services at their starting rate turned "I

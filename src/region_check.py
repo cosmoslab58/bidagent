@@ -4,12 +4,12 @@ with the provided zip code (climate, vegetation, etc.).
 """
 
 import base64
-import json
 import logging
 
 from openai import OpenAI
 
 from src.config import settings
+from src.model_json import parse_model_json
 
 logger = logging.getLogger("bidagent.region")
 
@@ -84,51 +84,7 @@ async def check_region_consistency(
             temperature=0.1,
         )
         raw = response.choices[0].message.content or ""
-        clean = raw.replace("```json", "").replace("```", "").strip()
-        # Remove any trailing/incomplete code fences or stray content
-        if clean.endswith('"') and clean.count('"') % 2 == 1:
-            clean += '"'
-        # Find the first { and last } to extract valid JSON
-        start = clean.find('{')
-        end = clean.rfind('}')
-        if start >= 0 and end > start:
-            clean = clean[start:end+1]
-        # Sanitize raw newlines/tabs inside string literals
-        chars = []
-        in_string = False
-        escape = False
-        for c in clean:
-            if c == '"' and not escape:
-                in_string = not in_string
-                chars.append(c)
-            elif c == '\\' and in_string and not escape:
-                escape = True
-                chars.append(c)
-            elif in_string:
-                if escape:
-                    escape = False
-                if c == '\n':
-                    chars.append('\\n')
-                elif c == '\r':
-                    chars.append('\\r')
-                elif c == '\t':
-                    chars.append('\\t')
-                else:
-                    chars.append(c)
-            else:
-                chars.append(c)
-        clean_safe = "".join(chars)
-        try:
-            result = json.loads(clean_safe)
-        except json.JSONDecodeError as e:
-            # Try one more time with missing commas inserted between fields
-            import re
-            fixed = re.sub(r'(true|false|\d+|\]|")\s+\n?\s+"', r'\1,\n      "', clean_safe)
-            try:
-                result = json.loads(fixed)
-            except json.JSONDecodeError:
-                # Re-raise the original parse error, not the repair attempt's.
-                raise e from None
+        result = parse_model_json(raw)
         warnings = result.get("warnings", [])
         if not result.get("consistent", True):
             warnings.insert(0, f"Climate/region mismatch detected for ZIP {zip_code}.")

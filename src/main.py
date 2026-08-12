@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from src.config import settings
+from src.model_json import as_text
 from src.price_book import load_or_fetch_price_book
 from src.quote_builder import build_quote
 from src.region_check import check_region_consistency
@@ -65,25 +66,9 @@ async def require_token(authorization: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Invalid or missing API token")
 
 
-def _as_text(value) -> str:
-    """Coerce a model-supplied field to a string.
-
-    The LLM is not consistent about shape: `rejection` comes back as a plain
-    string on one call and as {"reason": "..."} on the next. The response model
-    declares it a string, so the inconsistent case raised a validation error and
-    the endpoint returned 500 — turning a legitimate refusal into an outage for
-    the caller.
-    """
-    if value is None or isinstance(value, str):
-        return value
-    if isinstance(value, dict):
-        for key in ("reason", "message", "detail", "text"):
-            if isinstance(value.get(key), str):
-                return value[key]
-        return "; ".join(f"{k}: {v}" for k, v in value.items())
-    if isinstance(value, (list, tuple)):
-        return "; ".join(_as_text(v) for v in value if v is not None)
-    return str(value)
+# Lives in model_json now, next to the rest of the model-output coercion, so
+# quote_builder can reach it without importing this module back.
+_as_text = as_text
 
 
 @app.get("/healthz")

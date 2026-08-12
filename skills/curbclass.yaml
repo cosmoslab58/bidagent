@@ -136,6 +136,23 @@ prompts:
     Use the `name` field exactly as it appears in the pricing data when reporting a
     service, so the quote can be matched back to the catalogue.
 
+    Only quote a service when the thing it operates on is actually visible in the
+    photos. Do not substitute a different feature to justify a line item: a front
+    walkway, a garden path, a public sidewalk, and a patio are NOT a driveway, and
+    a lawn is not a mulch bed. If a requested service has no corresponding feature
+    in the photos, leave it out of "itemized_quote" and list it in "unquotable"
+    with a short reason. Quote the services that do apply as normal. Use
+    "rejection" only when nothing requested can be quoted at all.
+
+    Conditions that block assessment or the work itself must be reported in
+    "warnings", one short sentence each. Snow or ice covering a surface, standing
+    water, dense leaf cover, scaffolding, a vehicle parked over the area, deep
+    shade or darkness, and heavy obstruction all qualify. Surfaces cannot be
+    washed or painted while covered, and a covered surface cannot be assessed for
+    condition, so say so rather than quoting as if the surface were clear. If the
+    covering makes a service impossible to assess at all, put that service in
+    "unquotable" instead of guessing at a bracket.
+
     How to classify each service from the photos:
 
     1. Driveway & Concrete Deep Clean: evaluate size and condition, such as oil staining
@@ -180,9 +197,20 @@ prompts:
       "total": 1250,
       "total_low": 1250,
       "total_high": 1250,
-      "warnings": [],
+      "unquotable": [
+        {
+          "service": "Driveway & Concrete Deep Clean",
+          "reason": "no driveway is visible; the only concrete is a short front walkway"
+        }
+      ],
+      "warnings": ["Snow covers the driveway, so its condition cannot be assessed and it cannot be cleaned until it clears."],
       "rejection": null
     }
+
+    "unquotable" is for services you are declining individually; use an empty
+    array when everything requested applies. Never put a service in both
+    "itemized_quote" and "unquotable". A service listed there is not billed, so
+    do not compensate by raising the price of another line item.
 
     If you cannot estimate any of the requested services, return rejection with an explanation.
 
