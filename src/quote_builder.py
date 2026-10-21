@@ -4,13 +4,10 @@ from the LLM, then constructs an itemized quote with job descriptions.
 All prompt text comes from the skill YAML file, not hardcoded Python.
 """
 
-import base64
 import json
 import logging
 
-from openai import OpenAI
-
-from src.config import settings
+from src import llm
 from src.model_json import as_text, parse_model_json
 
 logger = logging.getLogger("bidagent.quote")
@@ -205,8 +202,8 @@ async def build_quote(
     image_buffers: list[dict],
     skill_def: dict,
 ) -> dict:
-    if not settings.openai_api_key:
-        return _flat_quote_fallback(services_list, price_book, skill_def, error_message="No OpenAI API key configured.")
+    if not llm.is_configured():
+        return _flat_quote_fallback(services_list, price_book, skill_def, error_message="No Anthropic API key configured.")
 
     pricing_json = json.dumps(price_book, indent=2, default=str)
     services_json = json.dumps(services_list)
@@ -225,31 +222,22 @@ Available pricing data:
 
 Respond with ONLY a JSON object as specified above."""
 
-    content_parts = [
-        {"type": "text", "text": "Analyze these property photos and produce an estimate."},
-    ]
-    for buf in image_buffers:
-        b64 = base64.b64encode(buf["data"]).decode("utf-8")
-        content_parts.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{b64}", "detail": "auto"},
-        })
+    # Same order as before (intro, photos, then the pricing prompt), now in one
+    # user turn: the two consecutive user messages were merged by the API anyway.
+    content_parts = [llm.text_block("Analyze these property photos and produce an estimate.")]
+    content_parts.extend(llm.image_block(buf) for buf in image_buffers)
+    content_parts.append(llm.text_block(full_prompt))
 
     raw = ""
     try:
-        client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
-        response = client.chat.completions.create(
-            model=settings.llm_model_name,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": content_parts},
-                {"role": "user", "content": [{"type": "text", "text": full_prompt}]},
-            ],
-            response_format={"type": "json_object"},
-            max_tokens=8192,
-            temperature=0.2,
+        # No output schema here: the quote shape is defined by the skill YAML
+        # prompt, so it stays prompt-driven and parse_model_json recovers it.
+        raw = await llm.complete_json(
+            system=system_prompt,
+            content=content_parts,
+            max_tokens=16000,
+            effort="medium",
         )
-        raw = response.choices[0].message.content or ""
         result = parse_model_json(raw)
 
         # Ensure single price fields are present and ranges match the single price

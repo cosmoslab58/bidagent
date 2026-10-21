@@ -3,12 +3,9 @@ Region consistency check — validates that the property photos are consistent
 with the provided zip code (climate, vegetation, etc.).
 """
 
-import base64
 import logging
 
-from openai import OpenAI
-
-from src.config import settings
+from src import llm
 from src.model_json import parse_model_json
 
 logger = logging.getLogger("bidagent.region")
@@ -28,6 +25,16 @@ _KNOWN_CLIMATES = {
     "NC": "Southeastern — varied coastal to mountains, temperate forests, humid",
 }
 
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "consistent": {"type": "boolean"},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["consistent", "warnings"],
+    "additionalProperties": False,
+}
+
 # Additional NL-based mapping using first 3 digits of zip
 # But we'll let the LLM handle this — just pass zip
 
@@ -42,7 +49,7 @@ async def check_region_consistency(
     if not rules.get("climate_check", True):
         return ["Climate check disabled by skill config."]
 
-    if not settings.openai_api_key:
+    if not llm.is_configured():
         return ["Climate check unavailable — no API key configured."]
 
     # From zip, derive a rough region hint
@@ -63,27 +70,18 @@ async def check_region_consistency(
         "provide specific warnings."
     )
 
-    content_parts: list[dict] = [{"type": "text", "text": "Check these property photos against the described region."}]
-    for buf in image_buffers[:3]:  # Limit to 3 for token efficiency
-        b64 = base64.b64encode(buf["data"]).decode("utf-8")
-        content_parts.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{b64}", "detail": "low"},
-        })
+    content_parts: list[dict] = [llm.text_block("Check these property photos against the described region.")]
+    # Limit to 3 for token efficiency
+    content_parts.extend(llm.image_block(buf) for buf in image_buffers[:3])
 
     try:
-        client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
-        response = client.chat.completions.create(
-            model=settings.llm_model_name,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": content_parts},
-            ],
-            response_format={"type": "json_object"},
-            max_tokens=500,
-            temperature=0.1,
+        raw = await llm.complete_json(
+            system=system_prompt,
+            content=content_parts,
+            max_tokens=4096,
+            effort="low",
+            schema=_SCHEMA,
         )
-        raw = response.choices[0].message.content or ""
         result = parse_model_json(raw)
         warnings = result.get("warnings", [])
         if not result.get("consistent", True):

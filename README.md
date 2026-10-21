@@ -19,7 +19,7 @@ AI-powered property estimating engine that uses computer vision to analyze prope
 * **Framework:** FastAPI / Uvicorn (Python 3.12)
 * **Image Processing:** Pillow
 * **HTTP Client:** HTTPX (asynchronous requests)
-* **LLM Engine:** OpenAI API client (supports Gemini, local models, or standard OpenAI endpoints)
+* **LLM Engine:** Anthropic Claude (`claude-haiku-5-5`) via the official `anthropic` Python SDK; all calls go through `src/llm.py`
 * **Configuration:** Pydantic Settings & YAML
 
 ---
@@ -31,9 +31,8 @@ Configuration is managed via a `.env` file located in `config/.env`:
 | Variable | Description | Default / Example |
 |---|---|---|
 | `PORT` | Local container port for the web server. | `8000` |
-| `OPENAI_BASE_URL` | Endpoint URL for the LLM API. | `https://generativelanguage.googleapis.com/v1beta/openai/` |
-| `OPENAI_API_KEY` | API key to authenticate with the LLM API. | *(Your key)* |
-| `LLM_MODEL_NAME` | The model name used for vision and quotes. | `gemini-2.5-flash` |
+| `ANTHROPIC_API_KEY` | Anthropic API key. | *(Your key)* |
+| `LLM_MODEL_NAME` | The Claude model used for vision checks and quotes. | `claude-haiku-5-5` |
 | `TWENTY_CRM_API_URL` | Twenty CRM server REST API base URL. | `http://bodhi.lab:3100/rest` |
 | `TWENTY_CRM_BEARER_TOKEN`| Bearer token to authorize Twenty CRM requests. | *(Your CRM Token)* |
 | `ACTIVE_SKILL` | The active YAML skill definition to load. | `curbclass` |
