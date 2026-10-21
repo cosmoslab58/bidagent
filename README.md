@@ -32,7 +32,8 @@ Configuration is managed via a `.env` file located in `config/.env`:
 |---|---|---|
 | `PORT` | Local container port for the web server. | `8000` |
 | `ANTHROPIC_API_KEY` | Anthropic API key. | *(Your key)* |
-| `LLM_MODEL_NAME` | The Claude model used for vision checks and quotes. | `claude-haiku-5-5` |
+| `LLM_MODEL_NAME` | The Claude model used for the photo and region checks. | `claude-haiku-5-5` |
+| `QUOTE_MODEL_NAME` | The Claude model that writes the quote (sent with `fallbacks: "default"`). | `claude-sonnet-5-5` |
 | `TWENTY_CRM_API_URL` | Twenty CRM server REST API base URL. | `http://bodhi.lab:3100/rest` |
 | `TWENTY_CRM_BEARER_TOKEN`| Bearer token to authorize Twenty CRM requests. | *(Your CRM Token)* |
 | `ACTIVE_SKILL` | The active YAML skill definition to load. | `curbclass` |

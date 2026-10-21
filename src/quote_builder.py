@@ -8,6 +8,7 @@ import json
 import logging
 
 from src import llm
+from src.config import settings as app_settings
 from src.model_json import as_text, parse_model_json
 
 logger = logging.getLogger("bidagent.quote")
@@ -236,7 +237,8 @@ Respond with ONLY a JSON object as specified above."""
             system=system_prompt,
             content=content_parts,
             max_tokens=16000,
-            effort="medium",
+            effort="high",
+            model=app_settings.quote_model_name,
         )
         result = parse_model_json(raw)
 

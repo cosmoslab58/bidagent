@@ -12,9 +12,11 @@ logger = logging.getLogger("bidagent")
 
 class Settings(BaseSettings):
     port: int = 8000
-    # Anthropic Claude via the official SDK. One model for every call site.
+    # Anthropic Claude via the official SDK. Haiku for the quick photo and region
+    # checks; Sonnet for the quote itself, which customers see and which sets the price.
     anthropic_api_key: str = ""
     llm_model_name: str = "claude-haiku-5-5"
+    quote_model_name: str = "claude-sonnet-5-5"
     active_skill: str = "curbclass"
     pricebook_url: str = ""
     twenty_base_url: str = ""

@@ -4,6 +4,9 @@ The one place BidAgent talks to the LLM (Anthropic Claude, official SDK).
 Every call site (vision check, region check, quote) goes through complete_json,
 so the model, client and response handling live here and nowhere else.
 
+Models: settings.llm_model_name (Haiku) by default; the quote passes
+settings.quote_model_name (Sonnet).
+
 Notes for claude-haiku-5-5:
 - Thinking is adaptive and on by default, and it counts toward max_tokens, so
   caps are sized with room for thinking on top of the JSON answer.
@@ -12,6 +15,9 @@ Notes for claude-haiku-5-5:
   output_config.format when the caller passes a schema.
 - There is no server-side refusal fallback for Haiku; a refusal raises
   LLMError and the caller's existing fallback path takes over.
+- Sonnet 5.5 and the Opus 5 line do have one: those calls go through the beta
+  endpoint with fallbacks="default", so a safety-classifier decline is rerun on
+  another model inside the same request. If the whole chain declines, LLMError.
 """
 
 from __future__ import annotations
@@ -25,6 +31,10 @@ import anthropic
 from src.config import settings
 
 logger = logging.getLogger("bidagent.llm")
+
+# Models that accept server-side fallbacks="default" (Claude API only).
+FALLBACK_MODELS = {"claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1"}
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 
 class LLMError(RuntimeError):
@@ -89,6 +99,7 @@ async def complete_json(
     max_tokens: int,
     effort: str,
     schema: dict | None = None,
+    model: str | None = None,
 ) -> str:
     """Send one user turn and return the model's text (expected to be JSON).
 
@@ -100,7 +111,7 @@ async def complete_json(
         output_config["format"] = {"type": "json_schema", "schema": schema}
 
     kwargs: dict = {
-        "model": settings.llm_model_name,
+        "model": model or settings.llm_model_name,
         "max_tokens": max_tokens,
         "thinking": {"type": "adaptive"},
         "output_config": output_config,
@@ -109,7 +120,11 @@ async def complete_json(
     if system:
         kwargs["system"] = system
 
-    response = await get_client().messages.create(**kwargs)
+    client = get_client()
+    if kwargs["model"] in FALLBACK_MODELS:
+        response = await client.beta.messages.create(**kwargs, betas=[FALLBACK_BETA], fallbacks="default")
+    else:
+        response = await client.messages.create(**kwargs)
 
     if response.stop_reason == "refusal":
         details = getattr(response, "stop_details", None)

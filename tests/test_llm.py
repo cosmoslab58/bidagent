@@ -39,7 +39,7 @@ class FakeMessages:
 class _FakeClientCase(unittest.TestCase):
     def install(self, *responses) -> FakeMessages:
         messages = FakeMessages(responses)
-        client = SimpleNamespace(messages=messages)
+        client = SimpleNamespace(messages=messages, beta=SimpleNamespace(messages=messages))
         patches = [
             mock.patch.object(llm, "get_client", return_value=client),
             mock.patch.object(settings, "anthropic_api_key", "test-key"),
@@ -140,7 +140,9 @@ class CallSiteTests(_FakeClientCase):
         result = asyncio.run(quote_builder.build_quote(["house_wash"], book, self._BUFS, skill))
         self.assertEqual(result["total"], 400.0)
         call = fake.calls[0]
-        self.assertEqual(call["output_config"], {"effort": "medium"})
+        self.assertEqual(call["output_config"], {"effort": "high"})
+        self.assertEqual(call["model"], "claude-sonnet-5-5")
+        self.assertEqual(call["fallbacks"], "default")
         content = call["messages"][0]["content"]
         self.assertEqual([b["type"] for b in content], ["text", "image", "image", "text"])
         self.assertIn("Available pricing data", content[-1]["text"])
@@ -153,3 +155,20 @@ class CallSiteTests(_FakeClientCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FallbackRoutingTests(_FakeClientCase):
+    def test_sonnet_goes_through_the_beta_endpoint_with_default_fallbacks(self) -> None:
+        fake = self.install(_response('{"a": 1}'))
+        asyncio.run(llm.complete_json(system="s", content=[], max_tokens=10, effort="high",
+                                      model="claude-sonnet-5-5"))
+        call = fake.calls[0]
+        self.assertEqual(call["model"], "claude-sonnet-5-5")
+        self.assertEqual(call["fallbacks"], "default")
+        self.assertEqual(call["betas"], [llm.FALLBACK_BETA])
+
+    def test_haiku_sends_no_fallbacks(self) -> None:
+        fake = self.install(_response('{"a": 1}'))
+        asyncio.run(llm.complete_json(system="s", content=[], max_tokens=10, effort="low"))
+        self.assertNotIn("fallbacks", fake.calls[0])
+        self.assertEqual(fake.calls[0]["model"], "claude-haiku-5-5")
