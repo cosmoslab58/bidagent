@@ -2,6 +2,12 @@ services:
   bidagent:
     build: .
     container_name: bidagent
+    # journald, not json-file: json logs die with the container on every
+    # rebuild, the journal keeps them. `docker logs` still works.
+    logging:
+      driver: journald
+      options:
+        tag: "{{.Name}}"
     ports:
       - "${HOST_PORT:-8000}:8000"
     env_file:

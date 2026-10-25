@@ -19,6 +19,17 @@ from src.vision import analyze_images
 
 logger = logging.getLogger("bidagent")
 
+
+class _NotHealthcheck(logging.Filter):
+    """The Docker healthcheck every 30 s was nearly all this service ever logged."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args if isinstance(record.args, tuple) else ()
+        return not (len(args) >= 3 and str(args[2]).startswith("/healthz"))
+
+
+logging.getLogger("uvicorn.access").addFilter(_NotHealthcheck())
+
 skill: dict = {}
 
 
