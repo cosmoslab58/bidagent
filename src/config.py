@@ -5,6 +5,7 @@ Centralized settings — loaded once, imported everywhere.
 import logging
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger("bidagent")
@@ -29,8 +30,10 @@ class Settings(BaseSettings):
 
     # Bearer token for /api/v1/estimate. Empty (the default) leaves the endpoint
     # open, exactly as before, so setting this on the caller and the service can
-    # be sequenced without an outage.
-    api_token: str = ""
+    # be sequenced without an outage. Read from BIDAGENT_API_TOKEN, the name the
+    # docs and the caller use; a bare `api_token` field would read API_TOKEN and
+    # quietly leave auth off.
+    api_token: str = Field("", validation_alias="BIDAGENT_API_TOKEN")
     # Only server-side callers use this API, so no browser origin is allowed by
     # default. Comma-separated if one is ever needed.
     cors_allow_origins: list[str] = []
