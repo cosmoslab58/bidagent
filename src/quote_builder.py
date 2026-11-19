@@ -202,6 +202,7 @@ async def build_quote(
     price_book: list[dict],
     image_buffers: list[dict],
     skill_def: dict,
+    timeout: float = llm.ESTIMATE_BUDGET_S,
 ) -> dict:
     if not llm.is_configured():
         return _flat_quote_fallback(services_list, price_book, skill_def, error_message="No Anthropic API key configured.")
@@ -239,6 +240,7 @@ Respond with ONLY a JSON object as specified above."""
             max_tokens=16000,
             effort="high",
             model=app_settings.quote_model_name,
+            timeout=timeout,
         )
         result = parse_model_json(raw)
 
@@ -319,6 +321,13 @@ Respond with ONLY a JSON object as specified above."""
 
 
 def _flat_quote_fallback(services_list: list[str], price_book: list[dict], skill_def: dict, error_message: str = None) -> dict:
+    """Default-bracket figures for when the model gave no usable quote.
+
+    Not a quote: nothing looked at the photos. The result says so with
+    `fallback: True` and a reason, so the caller can route it to a person
+    instead of sending these numbers to the customer. It used to be told apart
+    only by the text of a warning, which the caller never read.
+    """
     items = []
     total = 0
 
@@ -376,4 +385,6 @@ def _flat_quote_fallback(services_list: list[str], price_book: list[dict], skill
         "total_high": total,
         "warnings": [warning_msg],
         "rejection": None,
+        "fallback": True,
+        "fallback_reason": error_message or "AI analysis unavailable",
     }

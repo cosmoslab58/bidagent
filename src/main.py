@@ -1,5 +1,6 @@
 import logging
 import secrets
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -8,6 +9,7 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadF
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from src import llm
 from src.config import settings
 from src.model_json import as_text
 from src.price_book import load_or_fetch_price_book
@@ -100,6 +102,10 @@ class EstimateResponse(BaseModel):
     contractor_notes: Optional[str] = None
     estimate: Optional[dict] = None
     rejection: Optional[str] = None
+    # True when the model produced no quote and the line items are default
+    # brackets from the price book. The caller must not send those as a quote.
+    fallback: bool = False
+    fallback_reason: Optional[str] = None
     warnings: list[str] = []
     itemized_quote: Optional[list[dict]] = None
     total: Optional[float] = None
@@ -122,6 +128,7 @@ async def estimate(
     # inside the network; nothing ever populated it (curbclass sends multipart
     # blobs), so it was removed rather than left as an unauthenticated fetch
     # primitive.
+    started = time.monotonic()
     image_buffers = []
 
     for img in images:
@@ -152,11 +159,15 @@ async def estimate(
     price_book = await load_or_fetch_price_book(skill)
 
     services_list = [s.strip() for s in requested_services.split(",")]
-    result = await build_quote(services_list, price_book, image_buffers, skill)
+    # The quote gets what is left of the request budget, so the answer (a
+    # flagged fallback if the model runs out of time) leaves before the caller
+    # stops waiting at 120 s.
+    quote_timeout = max(1.0, llm.ESTIMATE_BUDGET_S - (time.monotonic() - started))
+    result = await build_quote(services_list, price_book, image_buffers, skill, timeout=quote_timeout)
 
     result["warnings"] = geo_warnings + result.get("warnings", [])
 
-    for field in ("rejection", "description", "contractor_notes"):
+    for field in ("rejection", "description", "contractor_notes", "fallback_reason"):
         if field in result:
             result[field] = _as_text(result[field])
 
@@ -167,6 +178,11 @@ async def estimate(
     if result.get("rejection"):
         result["status"] = "rejected"
         logger.warning("Quote rejected: %s", result["rejection"])
+    elif result.get("fallback"):
+        # Its own status, so a caller that only looks at status cannot take
+        # default brackets for an estimate.
+        result["status"] = "fallback"
+        logger.warning("Quote fell back to default brackets: %s", result.get("fallback_reason"))
     else:
         result["status"] = "estimate"
 

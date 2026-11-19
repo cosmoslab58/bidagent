@@ -22,6 +22,7 @@ Notes for claude-haiku-5-5:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 from functools import lru_cache
@@ -37,8 +38,19 @@ FALLBACK_MODELS = {"claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "cla
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 
+# Wall-clock limits in seconds. curbclass gives up on the whole estimate request
+# after 120 s (AbortSignal.timeout in its contactController.js), and the SDK
+# default is 10 minutes with retries on top, so a slow model used to leave the
+# caller hanging up with nothing. Each photo/region check gets CHECK_TIMEOUT_S
+# and fails open when it runs out; the quote gets whatever is left of
+# ESTIMATE_BUDGET_S for the request (see main.py) and comes back as a flagged
+# fallback, so an answer always leaves in time.
+CHECK_TIMEOUT_S = 20.0
+ESTIMATE_BUDGET_S = 100.0
+
+
 class LLMError(RuntimeError):
-    """The model returned no usable text (refusal, truncation, empty)."""
+    """The model returned no usable text (refusal, truncation, empty, timeout)."""
 
 
 def is_configured() -> bool:
@@ -100,11 +112,14 @@ async def complete_json(
     effort: str,
     schema: dict | None = None,
     model: str | None = None,
+    timeout: float = CHECK_TIMEOUT_S,
 ) -> str:
     """Send one user turn and return the model's text (expected to be JSON).
 
     The caller parses the text with parse_model_json, as before. With a schema,
     output_config.format guarantees the text is valid JSON of that shape.
+
+    `timeout` bounds the whole call, SDK retries included; past it, LLMError.
     """
     output_config: dict = {"effort": effort}
     if schema is not None:
@@ -122,9 +137,13 @@ async def complete_json(
 
     client = get_client()
     if kwargs["model"] in FALLBACK_MODELS:
-        response = await client.beta.messages.create(**kwargs, betas=[FALLBACK_BETA], fallbacks="default")
+        request = client.beta.messages.create(**kwargs, betas=[FALLBACK_BETA], fallbacks="default")
     else:
-        response = await client.messages.create(**kwargs)
+        request = client.messages.create(**kwargs)
+    try:
+        response = await asyncio.wait_for(request, timeout)
+    except asyncio.TimeoutError:
+        raise LLMError(f"model call timed out after {timeout:.0f} s") from None
 
     if response.stop_reason == "refusal":
         details = getattr(response, "stop_details", None)

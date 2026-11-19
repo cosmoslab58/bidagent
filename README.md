@@ -70,8 +70,10 @@ Generates an itemized estimate with descriptive feedback based on property infor
 #### **Response Body Schema**
 ```json
 {
-  "status": "estimate | rejected",
+  "status": "estimate | rejected | fallback",
   "rejection": "Explanation string if the estimate is rejected",
+  "fallback": false,
+  "fallback_reason": "Why the model produced no quote, when fallback is true",
   "warnings": [
     "List of warnings (e.g., ZIP climate mismatch, download issues)"
   ],
@@ -91,6 +93,12 @@ Generates an itemized estimate with descriptive feedback based on property infor
   "total_high": 420.0
 }
 ```
+
+A `fallback` response (`"status": "fallback"`, `"fallback": true`) means the model call failed or
+timed out and the line items are default brackets from the price book. It is not a quote: the
+caller must route it to a person and not send those figures to the customer.
+
+Model calls are time-limited (`CHECK_TIMEOUT_S` and `ESTIMATE_BUDGET_S` in `src/llm.py`) so a response always leaves before curbclass stops waiting at 120 s.
 
 ---
 
